@@ -1,0 +1,23 @@
+* **Indicators:** Common Cathode RGB LEDs
+
+## How to Run
+1. Upload `TeamChallenge.ino` to the Arduino.
+2. Ensure the 9V power supply is connected to the L298N Motor Driver.
+3. Place the robot at the start of the 2-meter track.
+
+### Phase 1: Hardware Calibration (Measuring the Wheels)
+Because physical wheel sizes and motor configurations vary, the system must be calibrated to your specific robot before running the main code.
+1. Connect the Arduino to your computer via USB.
+2. Upload the `CalibrationUtility.ino` sketch to the Arduino.
+3. Open the Arduino IDE Serial Monitor (set to 9600 baud).
+4. Place the robot at a starting line and manually push it forward exactly 2 meters.
+5. Look at the Serial Monitor and record the final encoder tick count (e.g., `Left Clicks: 450`).
+6. Open the main `TeamChallenge.ino` file and update line 44 with your recorded number: 
+   `const unsigned long TARGET_TICKS = 450;`
+
+### Phase 2: Execution (The 2-Meter Run)
+1. Upload the updated `TeamChallenge.ino` to the Arduino.
+2. **Safety Check:** Hold the robot securely in the air so the wheels don't touch the desk. Place your hand in front of the ultrasonic sensors to ensure the wheels stop (Red LED) and resume when clear (Green LED).
+3. Ensure the 9V power supply is securely connected to the L298N Motor Driver.
+4. Place the robot at the start of the 2-meter track. 
+5. The robot will autonomously navigate, avoid obstacles, and halt automatically at the 2-meter mark (indicated by the Blue LED).
