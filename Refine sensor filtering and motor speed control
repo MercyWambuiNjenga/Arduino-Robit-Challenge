@@ -1,0 +1,141 @@
+@@ -2,9 +2,11 @@
+  ENG109 Engineering Problem Solving and Data Analysis
+  Project: Arduino Autonomous Vehicle
+  
+  Updates applied for troubleshooting:
+   * Added Serial Monitor debugging.
+   * Added "Double-Check" debouncing to ultrasonic sensors to ignore ghost obstacles.
+  Updates applied:
+   * Maintained 2-Meter Encoder Goal and 15-second Emergency Stop.
+   * FIX 1: Ignored distances of 1cm and 2cm (Filters out ultrasonic ring-down noise).
+   * FIX 2: Used analogWrite() to lower motor speed to ~60% for stability.
+   * FIX 3: Added a 30ms delay at the end of loop() to prevent sensor cross-talk.
+*/
+
+// Drive pin definitions
+@@ -40,7 +42,8 @@ volatile bool isTurning = false;
+
+// 250 Ticks is ~2 meters for a 65mm wheel.
+const unsigned long TARGET_TICKS = 250; 
+const int OBSTACLE_DIST = 15; // Increased slightly to give the robot time to react
+const int OBSTACLE_DIST = 15; // Dodge distance in cm
+const int DRIVE_SPEED = 150;  // Roughly 60% motor speed (0-255)
+
+unsigned long startTime = 0; 
+
+@@ -92,7 +95,7 @@ void loop()
+    setMotors(0, 0);          
+    setLED(LOW, LOW, HIGH);   // BLUE = Goal Reached / Stopped
+    Serial.println("GOAL REACHED OR TIME OUT!");
+    delay(5000); // Stop spamming the serial monitor
+    delay(5000); 
+    return;                   
+  }
+
+@@ -108,15 +111,14 @@ void loop()
+  long leftDist = readDistance(LEFT_TRIG_PIN, LEFT_ECHO_PIN);
+  long rightDist = readDistance(RIGHT_TRIG_PIN, RIGHT_ECHO_PIN);
+
+  // Print distances to the computer to see what the robot sees!
+  // Debugging: Print distances to the computer to see what the robot sees!
+  Serial.print("Left: "); Serial.print(leftDist);
+  Serial.print("cm | Right: "); Serial.println(rightDist);
+
+  // 4. Obstacle Avoidance
+  if ((leftDist > 0 && leftDist < OBSTACLE_DIST) || (rightDist > 0 && rightDist < OBSTACLE_DIST)) {
+
+    // FALSE POSITIVE CHECK (Debounce):
+    // Wait a tiny bit and check again to ensure it wasn't just noise/floor reflection
+    // FALSE POSITIVE CHECK: Wait a tiny bit and check again to ensure it wasn't just noise
+    delay(30); 
+    leftDist = readDistance(LEFT_TRIG_PIN, LEFT_ECHO_PIN);
+    rightDist = readDistance(RIGHT_TRIG_PIN, RIGHT_ECHO_PIN);
+@@ -130,7 +132,6 @@ void loop()
+      // DODGE LOGIC
+      if (rightDist > 0 && rightDist < OBSTACLE_DIST) {
+        // Box is on the RIGHT. Dodge LEFT smoothly.
+        Serial.println("Dodging Left!");
+        setMotors(0, 1);        
+        delay(400);             
+        setMotors(1, 1);        
+@@ -140,16 +141,13 @@ void loop()
+      } 
+      else {
+        // Box is on the LEFT. Dodge RIGHT smoothly.
+        Serial.println("Dodging Right!");
+        setMotors(1, 0);        
+        delay(400);             
+        setMotors(1, 1);        
+        delay(600);             
+        setMotors(0, 1);        
+        delay(400);             
+      }
+    } else {
+      Serial.println("False alarm ignored.");
+    }
+  } 
+  else {
+@@ -158,6 +156,9 @@ void loop()
+    setMotors(1, 1);          // Drive straight to the finish line
+    setLED(LOW, HIGH, LOW);   // GREEN LED
+  }
+
+  // FIX 3: Add a small delay at the end of the loop so sensors don't hear each other's echoes!
+  delay(30); 
+}
+
+// --- Helper Functions ---
+@@ -170,14 +171,15 @@ void setLED(bool red, bool green, bool blue) {
+  digitalWrite(LED_RIGHT_EN_PIN, LED_ENABLED);
+}
+
+// FIX 2: Added analogWrite() for speed control instead of 100% full speed
+void setMotors(int leftDir, int rightDir) {
+  // Left Motor
+  if (leftDir == 1) { // Forward
+    digitalWrite(DRIVE_LEFT_PIN_1, LOW);
+    digitalWrite(DRIVE_LEFT_PIN_2, HIGH);
+    analogWrite(DRIVE_LEFT_PIN_2, DRIVE_SPEED); 
+  } else if (leftDir == -1) { // Reverse 
+    digitalWrite(DRIVE_LEFT_PIN_1, HIGH);
+    digitalWrite(DRIVE_LEFT_PIN_2, LOW);
+    analogWrite(DRIVE_LEFT_PIN_2, LOW);
+  } else { // Stop
+    digitalWrite(DRIVE_LEFT_PIN_1, LOW);
+    digitalWrite(DRIVE_LEFT_PIN_2, LOW);
+@@ -186,16 +188,17 @@ void setMotors(int leftDir, int rightDir) {
+  // Right Motor
+  if (rightDir == 1) { // Forward
+    digitalWrite(DRIVE_RIGHT_PIN_1, LOW);
+    digitalWrite(DRIVE_RIGHT_PIN_2, HIGH);
+    analogWrite(DRIVE_RIGHT_PIN_2, DRIVE_SPEED);
+  } else if (rightDir == -1) { // Reverse
+    digitalWrite(DRIVE_RIGHT_PIN_1, HIGH);
+    digitalWrite(DRIVE_RIGHT_PIN_2, LOW);
+    analogWrite(DRIVE_RIGHT_PIN_2, LOW);
+  } else { // Stop
+    digitalWrite(DRIVE_RIGHT_PIN_1, LOW);
+    digitalWrite(DRIVE_RIGHT_PIN_2, LOW);
+  }
+}
+
+// FIX 1: Ignoring fake 1cm and 2cm distances
+long readDistance(int trigPin, int echoPin) {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+@@ -204,6 +207,14 @@ long readDistance(int trigPin, int echoPin) {
+  digitalWrite(trigPin, LOW);
+
+  long duration = pulseIn(echoPin, HIGH, 30000); 
+  
+  // If sensor times out (sees nothing), return a huge number
+  if (duration == 0) { return 999; }
+  return duration / 58; 
+  
+  long distance = duration / 58; 
+  
+  // THE FIX: If distance is 1 or 2, it's just hardware noise! Ignore it.
+  if (distance <= 2) { return 999; }
+  
+  return distance; 
+}
