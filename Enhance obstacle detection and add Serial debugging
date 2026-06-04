@@ -1,0 +1,145 @@
+ ENG109 Engineering Problem Solving and Data Analysis
+ Project: Arduino Autonomous Vehicle
+ 
+  Updates:
+   * Adjusted obstacle detection distance to 10cm.
+   * Swapped violent "Tank Turns" for smooth "Pivot Turns" (No reverse!).
+   * Added a > 0 filter to prevent false sensor noise from causing fake turns.
+   * Increased Emergency Stop to 15 seconds to allow time for the dodge maneuver.
+  Updates applied for troubleshooting:
+   * Added Serial Monitor debugging.
+   * Added "Double-Check" debouncing to ultrasonic sensors to ignore ghost obstacles.
+*/
+
+// Drive pin definitions
+@@ -42,6 +40,7 @@ volatile bool isTurning = false;
+
+// 250 Ticks is ~2 meters for a 65mm wheel.
+const unsigned long TARGET_TICKS = 250; 
+const int OBSTACLE_DIST = 15; // Increased slightly to give the robot time to react
+
+unsigned long startTime = 0; 
+
+@@ -77,10 +76,12 @@ void setup()
+
+// 1-Second Warmup
+setLED(HIGH, HIGH, LOW); 
+  Serial.println("System Initialized. Warming up...");
+delay(1000);
+
+// Record the exact time the robot actually starts driving
+startTime = millis(); 
+  Serial.println("STARTING!");
+}
+
+void loop()
+@@ -90,10 +91,12 @@ void loop()
+isTurning = true;         
+setMotors(0, 0);          
+setLED(LOW, LOW, HIGH);   // BLUE = Goal Reached / Stopped
+    Serial.println("GOAL REACHED OR TIME OUT!");
+    delay(5000); // Stop spamming the serial monitor
+return;                   
+}
+
+  // 2. TIME-BASED BLIND START (Drives straight for 1 second out of the start box)
+  // 2. TIME-BASED BLIND START (Drives straight for 1 second)
+if (millis() - startTime < 1000) {
+isTurning = false;
+setMotors(1, 1);
+@@ -105,40 +108,53 @@ void loop()
+long leftDist = readDistance(LEFT_TRIG_PIN, LEFT_ECHO_PIN);
+long rightDist = readDistance(RIGHT_TRIG_PIN, RIGHT_ECHO_PIN);
+
+  // 4. Obstacle Avoidance (Smooth Pivot Dodge at 10cm)
+  // We check > 0 to make sure electrical noise doesn't cause a fake turn!
+  if ((leftDist > 0 && leftDist < 10) || (rightDist > 0 && rightDist < 10)) {
+  // Print distances to the computer to see what the robot sees!
+  Serial.print("Left: "); Serial.print(leftDist);
+  Serial.print("cm | Right: "); Serial.println(rightDist);
+
+  // 4. Obstacle Avoidance
+  if ((leftDist > 0 && leftDist < OBSTACLE_DIST) || (rightDist > 0 && rightDist < OBSTACLE_DIST)) {
+
+    isTurning = true;         // Pause 2-meter counter during the dodge
+    setLED(HIGH, LOW, LOW);   // RED LED
+    // FALSE POSITIVE CHECK (Debounce):
+    // Wait a tiny bit and check again to ensure it wasn't just noise/floor reflection
+    delay(30); 
+    leftDist = readDistance(LEFT_TRIG_PIN, LEFT_ECHO_PIN);
+    rightDist = readDistance(RIGHT_TRIG_PIN, RIGHT_ECHO_PIN);
+
+    // DECISION: Which way do we dodge?
+    if (rightDist > 0 && rightDist < 10) {
+      // Box is on the RIGHT. Dodge LEFT smoothly.
+      setMotors(0, 1);        // 1. Pivot Left (Left wheel stops, Right wheel drives)
+      delay(400);             //    (Adjust this to change the angle of the turn)
+      
+      setMotors(1, 1);        // 2. Drive straight diagonally past the box
+      delay(600);             
+    if ((leftDist > 0 && leftDist < OBSTACLE_DIST) || (rightDist > 0 && rightDist < OBSTACLE_DIST)) {
+
+      setMotors(1, 0);        // 3. Pivot Right (Right wheel stops, Left wheel drives)
+      delay(400);             //    (This straightens the robot back out to face the finish line!)
+    } 
+    else {
+      // Box is on the LEFT. Dodge RIGHT smoothly.
+      setMotors(1, 0);        // 1. Pivot Right
+      delay(400);             
+      Serial.println("OBSTACLE CONFIRMED! Dodging...");
+      isTurning = true;         
+      setLED(HIGH, LOW, LOW);   // RED LED
+
+      setMotors(1, 1);        // 2. Drive straight diagonally past the box
+      delay(600);             
+      
+      setMotors(0, 1);        // 3. Pivot Left to face the finish line again!
+      delay(400);             
+      // DODGE LOGIC
+      if (rightDist > 0 && rightDist < OBSTACLE_DIST) {
+        // Box is on the RIGHT. Dodge LEFT smoothly.
+        Serial.println("Dodging Left!");
+        setMotors(0, 1);        
+        delay(400);             
+        setMotors(1, 1);        
+        delay(600);             
+        setMotors(1, 0);        
+        delay(400);             
+      } 
+      else {
+        // Box is on the LEFT. Dodge RIGHT smoothly.
+        Serial.println("Dodging Right!");
+        setMotors(1, 0);        
+        delay(400);             
+        setMotors(1, 1);        
+        delay(600);             
+        setMotors(0, 1);        
+        delay(400);             
+      }
+    } else {
+      Serial.println("False alarm ignored.");
+}
+} 
+else {
+// Path is clear
+    isTurning = false;        // Turn counting back on!
+    isTurning = false;        
+setMotors(1, 1);          // Drive straight to the finish line
+setLED(LOW, HIGH, LOW);   // GREEN LED
+}
+@@ -154,14 +170,12 @@ void setLED(bool red, bool green, bool blue) {
+digitalWrite(LED_RIGHT_EN_PIN, LED_ENABLED);
+}
+
+// YOUR ORIGINAL WORKING MOTOR CODE (Unchanged!)
+void setMotors(int leftDir, int rightDir) {
+  
+// Left Motor
+if (leftDir == 1) { // Forward
+digitalWrite(DRIVE_LEFT_PIN_1, LOW);
+digitalWrite(DRIVE_LEFT_PIN_2, HIGH);
+  } else if (leftDir == -1) { // Reverse (Only used for extreme stops now)
+  } else if (leftDir == -1) { // Reverse 
+digitalWrite(DRIVE_LEFT_PIN_1, HIGH);
+digitalWrite(DRIVE_LEFT_PIN_2, LOW);
+} else { // Stop
