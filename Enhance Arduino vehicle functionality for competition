@@ -1,0 +1,170 @@
+/*
+ ENG109 Engineering Problem Solving and Data Analysis
+ Project: Arduino Autonomous Vehicle
+  Student ID: 
+  Student Name: 
+ 
+  This programme implements the following functionality:
+   * Drives forward using L298N motor driver.
+   * Uses dual ultrasonic sensors for active obstacle avoidance.
+   * Detects which sensor triggered and turns away from the obstacle.
+   * Tracks distance using hardware interrupts and wheel encoders.
+   * Pauses distance tracking during turns for high-accuracy 2-meter goal.
+   * Stops automatically and turns LED blue when the 2-meter goal is reached.
+  Updates for Competition:
+   * Added startup delay to prevent sensor "ghost hunting".
+   * Implemented PWM Speed Control (slower, steady driving).
+   * Increased turn delay (600ms) to prevent getting stuck in corners.
+   * Updated TARGET_TICKS to 2000 for 65mm wheels.
+*/
+
+// Drive pin definitions
+#define DRIVE_RIGHT_PIN_1 9   
+#define DRIVE_RIGHT_PIN_1 9   // Supports analogWrite (PWM)
+#define DRIVE_RIGHT_PIN_2 8
+#define DRIVE_LEFT_PIN_1  10  
+#define DRIVE_LEFT_PIN_1  10  // Supports analogWrite (PWM)
+#define DRIVE_LEFT_PIN_2  12
+
+// Encoder pin definitions:
+@@ -40,29 +36,25 @@
+#define LED_ENABLED   LOW
+#define LED_DISABLED  HIGH
+
+
+// 255 is max speed, 0 is stopped. 130 is a good, steady average speed.
+const int BASE_SPEED = 130; 
+
+// --- Encoder Variables for 2-Meter Goal ---
+volatile unsigned long leftEncoderTicks = 0;
+volatile unsigned long rightEncoderTicks = 0;
+
+// This prevents the robot from counting "turning" clicks toward the 2-meter goal
+volatile bool isTurning = false; 
+
+// calculation is based on the physical wheels
+const unsigned long TARGET_TICKS = 200; 
+// Updated for 65mm wheels (Approx 2 meters)
+const unsigned long TARGET_TICKS = 2000; 
+
+// --- Interrupt Service Routines (ISRs) ---
+void countLeft() {
+  // Only count if we are driving straight!
+  if (!isTurning) {
+    leftEncoderTicks++;
+  }
+  if (!isTurning) { leftEncoderTicks++; }
+}
+
+void countRight() {
+  // Only count if we are driving straight!
+  if (!isTurning) {
+    rightEncoderTicks++;
+  }
+  if (!isTurning) { rightEncoderTicks++; }
+}
+
+void setup()
+@@ -94,16 +86,22 @@ void setup()
+attachInterrupt(digitalPinToInterrupt(RIGHT_ENCODER_PIN), countRight, RISING);
+
+Serial.begin(9600); 
+
+  
+  // Wait 1 second before doing anything. This lets the ultrasonic sensors 
+  // warm up so the robot doesn't "hunt" invisible ghosts at startup.
+  setLED(HIGH, HIGH, LOW); // Turn on Yellow (Red+Green) to show it's warming up
+  delay(1000);
+}
+
+void loop()
+{
+// 1. Check if the 2-meter goal has been reached
+if (leftEncoderTicks >= TARGET_TICKS || rightEncoderTicks >= TARGET_TICKS) {
+    isTurning = true;         // Stop counting
+    setMotors(0, 0);          // Stop motors
+    isTurning = true;         
+    setMotors(0, 0);          
+setLED(LOW, LOW, HIGH);   // Set LED to BLUE
+    return;                   // End loop
+    return;                   
+}
+
+// 2. Read both ultrasonic sensors
+@@ -113,28 +111,28 @@ void loop()
+// 3. Active Obstacle Avoidance Logic
+if (leftDist < 20 && rightDist < 20) {
+// Obstacle dead ahead! Spin Right to escape.
+    isTurning = true;         // Pause the 2-meter counter
+    isTurning = true;         
+setLED(HIGH, LOW, LOW);   // RED LED
+    setMotors(1, -1);         // Spin Right (Left forward, Right reverse)
+    delay(300);               // Wait 0.3 seconds to let it rotate
+    setMotors(1, -1);         // Spin Right 
+    delay(600);               // UPGRADED: 600ms turn to fully clear the box
+} 
+else if (leftDist < 20) {
+// Obstacle on the Left! Spin Right.
+isTurning = true;
+setLED(HIGH, LOW, LOW);
+setMotors(1, -1);
+    delay(300);
+    delay(600);
+} 
+else if (rightDist < 20) {
+// Obstacle on the Right! Spin Left.
+isTurning = true;
+setLED(HIGH, LOW, LOW);
+    setMotors(-1, 1);         // Spin Left (Left reverse, Right forward)
+    delay(300);
+    setMotors(-1, 1);         // Spin Left 
+    delay(600);
+} 
+else {
+// Path is clear: GO FORWARD
+    isTurning = false;        // Turn counting back on!
+    isTurning = false;        
+setMotors(1, 1);
+setLED(LOW, HIGH, LOW);   // GREEN LED
+}
+@@ -154,29 +152,29 @@ void setLED(bool red, bool green, bool blue) {
+}
+
+/**
+ * UPGRADED: Sets motor direction. 
+ * 1 = Forward, -1 = Reverse, 0 = Stop
+ * UPGRADED: Speed control via analogWrite!
+ * 1 = Forward (Controlled Speed), -1 = Reverse (Fast Turn), 0 = Stop
+*/
+void setMotors(int leftSpeed, int rightSpeed) {
+void setMotors(int leftDir, int rightDir) {
+// Left Motor Logic
+  if (leftSpeed == 1) { // Forward
+  if (leftDir == 1) { // Forward at BASE_SPEED
+    analogWrite(DRIVE_LEFT_PIN_1, BASE_SPEED);
+    digitalWrite(DRIVE_LEFT_PIN_2, LOW);
+  } else if (leftDir == -1) { // Reverse for turning
+digitalWrite(DRIVE_LEFT_PIN_1, LOW);
+digitalWrite(DRIVE_LEFT_PIN_2, HIGH);
+  } else if (leftSpeed == -1) { // Reverse
+    digitalWrite(DRIVE_LEFT_PIN_1, HIGH);
+    digitalWrite(DRIVE_LEFT_PIN_2, LOW);
+} else { // Stop
+digitalWrite(DRIVE_LEFT_PIN_1, LOW);
+digitalWrite(DRIVE_LEFT_PIN_2, LOW);
+}
+
+// Right Motor Logic
+  if (rightSpeed == 1) { // Forward
+  if (rightDir == 1) { // Forward at BASE_SPEED
+    analogWrite(DRIVE_RIGHT_PIN_1, BASE_SPEED);
+    digitalWrite(DRIVE_RIGHT_PIN_2, LOW);
+  } else if (rightDir == -1) { // Reverse for turning
+digitalWrite(DRIVE_RIGHT_PIN_1, LOW);
+digitalWrite(DRIVE_RIGHT_PIN_2, HIGH);
+  } else if (rightSpeed == -1) { // Reverse
+    digitalWrite(DRIVE_RIGHT_PIN_1, HIGH);
+    digitalWrite(DRIVE_RIGHT_PIN_2, LOW);
+} else { // Stop
+digitalWrite(DRIVE_RIGHT_PIN_1, LOW);
+digitalWrite(DRIVE_RIGHT_PIN_2, LOW);
