@@ -1,0 +1,134 @@
+ ENG109 Engineering Problem Solving and Data Analysis
+ Project: Arduino Autonomous Vehicle
+ 
+  Ultimate Fixes:
+   * Added SOFTWARE MOTOR INVERSION (Fixes wiring issues without touching wires).
+   * Changed Blind Start to a Time-based failsafe (1 second).
+   * Straight line motor calibration included.
+
+   * REDUCED Target Ticks back to ~2 Meters (was set to 20 meters).
+   * ADDED 10-Second Emergency Stop.
+*/
+
+// Drive pin definitions
+@@ -34,25 +33,15 @@
+#define LED_ENABLED   LOW
+#define LED_DISABLED  HIGH
+
+
+
+// 1. FIX SPINNING: If a motor drives backward when it should go forward, change 'false' to 'true'!
+bool INVERT_LEFT_MOTOR = false;
+bool INVERT_RIGHT_MOTOR = false;
+
+// 2. FIX CURVING: If the robot curves LEFT, increase LEFT_SPEED (e.g., 140). Max is 255.
+int LEFT_SPEED = 130;  
+int RIGHT_SPEED = 130; 
+
+// 3. 2-METER GOAL: Number of clicks to reach 2 meters.
+const unsigned long TARGET_TICKS = 2000; 
+
+// ======================================================================
+
+// --- 2-Meter Goal ---
+volatile unsigned long leftEncoderTicks = 0;
+volatile unsigned long rightEncoderTicks = 0;
+volatile bool isTurning = false; 
+unsigned long startTime = 0; // Used for the failsafe blind start
+
+// 250 Ticks is roughly 2 meters for a 65mm wheel! (2000 was 20 meters!)
+const unsigned long TARGET_TICKS = 250; 
+
+unsigned long startTime = 0; 
+
+// --- Interrupt Service Routines ---
+void countLeft() { if (!isTurning) leftEncoderTicks++; }
+@@ -94,16 +83,15 @@ void setup()
+
+void loop()
+{
+  // 1. Check if the 2-meter goal has been reached
+  if (leftEncoderTicks >= TARGET_TICKS || rightEncoderTicks >= TARGET_TICKS) {
+  // 1. Check if 2-meter goal reached OR 10 seconds have passed (Emergency Stop)
+  if (leftEncoderTicks >= TARGET_TICKS || rightEncoderTicks >= TARGET_TICKS || millis() - startTime > 10000) {
+isTurning = true;         
+setMotors(0, 0);          
+    setLED(LOW, LOW, HIGH);   // BLUE = Goal Reached
+    setLED(LOW, LOW, HIGH);   // BLUE = Goal Reached / Stopped
+return;                   
+}
+
+  // 2. TIME-BASED BLIND START (Failsafe)
+  // For exactly 1 second after warmup, drive straight and ignore sensors
+  // 2. TIME-BASED BLIND START (Drives straight for 1 second out of the start box)
+if (millis() - startTime < 1000) {
+isTurning = false;
+setMotors(1, 1);
+@@ -120,19 +108,19 @@ void loop()
+isTurning = true;         
+setLED(HIGH, LOW, LOW);   
+setMotors(1, -1);         // Spin Right 
+    delay(600);               
+    delay(500);               
+} 
+else if (leftDist < 20) {
+isTurning = true;
+setLED(HIGH, LOW, LOW);
+setMotors(1, -1);         // Spin Right
+    delay(600);
+    delay(500);
+} 
+else if (rightDist < 20) {
+isTurning = true;
+setLED(HIGH, LOW, LOW);
+setMotors(-1, 1);         // Spin Left
+    delay(600);
+    delay(500);
+} 
+else {
+isTurning = false;        
+@@ -151,33 +139,29 @@ void setLED(bool red, bool green, bool blue) {
+digitalWrite(LED_RIGHT_EN_PIN, LED_ENABLED);
+}
+
+// Upgraded Motor Function that handles backwards wiring in software!
+// YOUR ORIGINAL WORKING MOTOR CODE
+void setMotors(int leftDir, int rightDir) {
+
+  // Apply software inversion if the user set it to true
+  if (INVERT_LEFT_MOTOR) leftDir = -leftDir;
+  if (INVERT_RIGHT_MOTOR) rightDir = -rightDir;
+
+// Left Motor
+  if (leftDir == 1) { 
+    analogWrite(DRIVE_LEFT_PIN_1, LEFT_SPEED);
+    digitalWrite(DRIVE_LEFT_PIN_2, LOW);
+  } else if (leftDir == -1) { 
+  if (leftDir == 1) { // Forward
+digitalWrite(DRIVE_LEFT_PIN_1, LOW);
+digitalWrite(DRIVE_LEFT_PIN_2, HIGH);
+  } else { 
+  } else if (leftDir == -1) { // Reverse (For Turning)
+    digitalWrite(DRIVE_LEFT_PIN_1, HIGH);
+    digitalWrite(DRIVE_LEFT_PIN_2, LOW);
+  } else { // Stop
+digitalWrite(DRIVE_LEFT_PIN_1, LOW);
+digitalWrite(DRIVE_LEFT_PIN_2, LOW);
+}
+
+// Right Motor
+  if (rightDir == 1) { 
+    analogWrite(DRIVE_RIGHT_PIN_1, RIGHT_SPEED);
+    digitalWrite(DRIVE_RIGHT_PIN_2, LOW);
+  } else if (rightDir == -1) { 
+  if (rightDir == 1) { // Forward
+digitalWrite(DRIVE_RIGHT_PIN_1, LOW);
+digitalWrite(DRIVE_RIGHT_PIN_2, HIGH);
+  } else { 
+  } else if (rightDir == -1) { // Reverse (For Turning)
+    digitalWrite(DRIVE_RIGHT_PIN_1, HIGH);
+    digitalWrite(DRIVE_RIGHT_PIN_2, LOW);
+  } else { // Stop
+digitalWrite(DRIVE_RIGHT_PIN_1, LOW);
+digitalWrite(DRIVE_RIGHT_PIN_2, LOW);
+}
