@@ -1,0 +1,61 @@
+long leftDist = readDistance(LEFT_TRIG_PIN, LEFT_ECHO_PIN);
+long rightDist = readDistance(RIGHT_TRIG_PIN, RIGHT_ECHO_PIN);
+
+  // 4. Obstacle Avoidance
+  if (leftDist < 20 && rightDist < 20) {
+    isTurning = true;         
+    setLED(HIGH, LOW, LOW);   
+    setMotors(1, -1);         // Spin Right 
+    delay(500);               
+  } 
+  else if (leftDist < 20) {
+    isTurning = true;
+    setLED(HIGH, LOW, LOW);
+    setMotors(1, -1);         // Spin Right
+    delay(500);
+  } 
+  else if (rightDist < 20) {
+    isTurning = true;
+    setLED(HIGH, LOW, LOW);
+    setMotors(-1, 1);         // Spin Left
+    delay(500);
+  // 4. Obstacle Avoidance 
+  if (leftDist < 20 || rightDist < 20) {
+    
+    isTurning = true;         // Pause 2-meter counter during the dodge
+    setLED(HIGH, LOW, LOW);   // RED LED
+    
+    // DECISION: Which way do we dodge?
+    if (rightDist < 20) {
+      // Box is on the RIGHT. We must dodge LEFT.
+      setMotors(-1, 1);       // 1. Turn Left
+      delay(300);             //    (Adjust this so it turns about 45 degrees)
+      
+      setMotors(1, 1);        // 2. Drive straight past the box
+      delay(600);             //    (Adjust this to make sure it clears the box)
+      
+      setMotors(1, -1);       // 3. Turn Right to face the finish line again!
+      delay(300);             //    (Must be the same time as step 1 to straighten out)
+    } 
+    else {
+      // Box is on the LEFT (or Dead Center). We must dodge RIGHT.
+      setMotors(1, -1);       // 1. Turn Right
+      delay(300);             
+      
+      setMotors(1, 1);        // 2. Drive straight past the box
+      delay(600);             
+      
+      setMotors(-1, 1);       // 3. Turn Left to face the finish line again!
+      delay(300);             
+    }
+} 
+else {
+    isTurning = false;        
+    setMotors(1, 1);          // Drive straight
+    setLED(LOW, HIGH, LOW);   
+    // Path is clear
+    isTurning = false;        // Turn counting back on!
+    setMotors(1, 1);          // Drive straight to the finish line
+    setLED(LOW, HIGH, LOW);   // GREEN LED
+}
+}
