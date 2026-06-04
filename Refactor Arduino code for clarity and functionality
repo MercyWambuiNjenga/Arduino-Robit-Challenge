@@ -1,0 +1,273 @@
+/*
+ ENG109 Engineering Problem Solving and Data Analysis
+  Project: Arduino Autonomous Vehicle - Team Challenge
+  Student Name: [Your Name]
+  Project: Arduino Autonomous Vehicle
+  Student ID: 
+  Student Name: 
+ 
+  Description:
+  This programme controls an autonomous vehicle to navigate an obstacle course.
+  Features include:
+   - Position estimation using wheel encoders to reach a 2m target.
+   - Obstacle avoidance using dual ultrasonic distance sensors.
+   - Visual status feedback via RGB LEDs.
+  This programme implements the following functionality:
+   * Drives forward using L298N motor driver.
+   * Uses dual ultrasonic sensors for obstacle avoidance (stops at < 20cm).
+   * Tracks distance using hardware interrupts and wheel encoders.
+   * Stops automatically and turns LED blue when the 2-meter goal is reached.
+   * Uses RGB LEDs to indicate state (Green: Moving, Red: Obstacle, Blue: Goal Reached).
+*/
+
+// --- Pin Definitions ---
+#define DRIVE_RIGHT_PIN_1 9  
+// Drive pin definitions
+#define DRIVE_RIGHT_PIN_1 9   
+#define DRIVE_RIGHT_PIN_2 8
+#define DRIVE_LEFT_PIN_1  10 
+#define DRIVE_LEFT_PIN_1  10  
+#define DRIVE_LEFT_PIN_2  12
+
+// Encoder pin definitions:
+#define LEFT_ENCODER_PIN  2
+#define RIGHT_ENCODER_PIN 3
+
+#define LEFT_TRIG_PIN      A1
+#define LEFT_ECHO_PIN      A0
+#define RIGHT_TRIG_PIN     A2
+#define RIGHT_ECHO_PIN     A3
+// Ultrasonic sensor pin and value definitions:
+#define LEFT_TRIG_PIN     A1
+#define LEFT_ECHO_PIN     A0
+#define RIGHT_TRIG_PIN    A2
+#define RIGHT_ECHO_PIN    A3
+
+// RGB LED pin definitions:
+#define RED_LED_PIN           5
+#define GREEN_LED_PIN         11
+#define BLUE_LED_PIN          6
+#define LED_LEFT_EN_PIN       4
+#define LED_RIGHT_EN_PIN      7
+
+// Left and right enable output values:
+#define LED_ENABLED   LOW
+#define LED_DISABLED  HIGH
+
+// --- Global Variables ---
+volatile int pulseCount = 0; 
+// Target pulses for ~2 meters. (Calculation: 20 slots per rotation
+const int targetPulses = 200; 
+// --- NEW: Encoder Variables for 2-Meter Goal ---
+// 'volatile' is required because these change inside an interrupt
+volatile unsigned long leftEncoderTicks = 0;
+volatile unsigned long rightEncoderTicks = 0;
+
+void setup() {
+  // Motor Outputs 
+// calculation is based on the physical wheels
+// e.g., If 1 rotation = 20 ticks, and wheel circumference = 20cm.
+// 200cm / 20cm = 10 rotations. 10 rotations * 20 ticks = 200 ticks.
+const unsigned long TARGET_TICKS = 200; 
+
+// --- Interrupt Service Routines (ISRs) ---
+// These fire automatically whenever the encoder wheel clicks
+void countLeft() {
+  leftEncoderTicks++;
+}
+
+void countRight() {
+  rightEncoderTicks++;
+}
+
+/**
+ * Setup function: Initializes pins, serial comms, and interrupts.
+ */
+void setup()
+{
+  // Motor Pins
+pinMode(DRIVE_RIGHT_PIN_1, OUTPUT);
+pinMode(DRIVE_RIGHT_PIN_2, OUTPUT);
+pinMode(DRIVE_LEFT_PIN_1, OUTPUT);
+pinMode(DRIVE_LEFT_PIN_2, OUTPUT);
+
+  // LED Outputs 
+  pinMode(LED_LEFT_EN_PIN, OUTPUT);
+  pinMode(LED_RIGHT_EN_PIN, OUTPUT);
+  // LED Pins
+pinMode(RED_LED_PIN, OUTPUT);
+pinMode(GREEN_LED_PIN, OUTPUT);
+pinMode(BLUE_LED_PIN, OUTPUT);
+
+  // Sensor Pins ]
+  pinMode(LEFT_TRIG_PIN, OUTPUT);
+  pinMode(LEFT_ECHO_PIN, INPUT);
+  pinMode(RIGHT_TRIG_PIN, OUTPUT);
+  pinMode(RIGHT_ECHO_PIN, INPUT);
+  pinMode(LED_LEFT_EN_PIN, OUTPUT);
+  pinMode(LED_RIGHT_EN_PIN, OUTPUT); 
+
+  // Encoder Setup 
+  // Ultrasonic Pins
+  pinMode(LEFT_TRIG_PIN, OUTPUT);  // Sends the sound pulse 
+  pinMode(LEFT_ECHO_PIN, INPUT);   // Listens for the bounce back 
+  pinMode(RIGHT_TRIG_PIN, OUTPUT); 
+  pinMode(RIGHT_ECHO_PIN, INPUT);  
+  
+  // Encoder Pins & Interrupts
+pinMode(LEFT_ENCODER_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(LEFT_ENCODER_PIN), countPulse, RISING);
+  pinMode(RIGHT_ENCODER_PIN, INPUT_PULLUP);
+
+  Serial.begin(9600);
+  // Attach the interrupts to trigger on the RISING edge of the encoder signal
+  attachInterrupt(digitalPinToInterrupt(LEFT_ENCODER_PIN), countLeft, RISING);
+  attachInterrupt(digitalPinToInterrupt(RIGHT_ENCODER_PIN), countRight, RISING);
+
+  Serial.begin(9600); 
+}
+
+void loop() {
+  // 1. Check if we have reached the 2-meter goal 
+  if (pulseCount >= targetPulses) {
+    stopRobot();
+    // Turn LEDs Blue to signal completion
+    setLeftLED(0, 0, 255); 
+    setRightLED(0, 0, 255);
+/**
+ * Main loop: Handles decision making based on sensors and encoders.
+ */
+void loop()
+{
+  // 1. Check if the 2-meter goal has been reached
+  if (leftEncoderTicks >= TARGET_TICKS || rightEncoderTicks >= TARGET_TICKS) {
+    setMotors(0, 0);          // Stop motors
+    setLED(LOW, LOW, HIGH);   // Set LED to BLUE
+    return;                   // Skips the rest of the loop entirely
+  }
+
+  // 2. Read both ultrasonic sensors
+  long leftDist = readDistance(LEFT_TRIG_PIN, LEFT_ECHO_PIN);
+  long rightDist = readDistance(RIGHT_TRIG_PIN, RIGHT_ECHO_PIN);
+  
+  // 3. Obstacle Avoidance Logic
+  if (leftDist < 20 || rightDist < 20) {
+    // Obstacle detected: STOP
+    setMotors(0, 0);
+    setLED(HIGH, LOW, LOW);   // Set LED to RED
+} 
+else {
+    // 2. Read sensor data 
+    long leftDist = readDistance(LEFT_TRIG_PIN, LEFT_ECHO_PIN);
+    long rightDist = readDistance(RIGHT_TRIG_PIN, RIGHT_ECHO_PIN);
+
+    // 3. Obstacle Avoidance Logic 
+    if (leftDist < 20 || rightDist < 20) {
+      stopRobot();
+      // Flash Red twice per second 
+      setLeftLED(255, 0, 0);
+      setRightLED(255, 0, 0);
+      delay(250);
+      setLeftLED(0, 0, 0);
+      setRightLED(0, 0, 0);
+      delay(250);
+    } 
+    // 4. Drive Forward 
+    else {
+      moveForward();
+      // Set LEDs to Green while driving straight 
+      setLeftLED(0, 255, 0);
+      setRightLED(0, 255, 0);
+    }
+    // Path is clear: GO FORWARD
+    setMotors(1, 1);
+    setLED(LOW, HIGH, LOW);   // Set LED to GREEN
+}
+}
+
+// --- Helper Functions ---
+
+long readDistance(int trigPin, int echoPin) {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH); 
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  long duration = pulseIn(echoPin, HIGH); 
+  return duration / 58; // Distance in cm 
+}
+
+void countPulse() {
+  pulseCount++; 
+}
+
+void setLeftLED(int r, int g, int b) {
+  digitalWrite(LED_RIGHT_EN_PIN, LED_DISABLED);
+/**
+ * Controls the RGB LED colors and enables them.
+ */
+void setLED(bool red, bool green, bool blue) {
+  digitalWrite(RED_LED_PIN, red ? HIGH : LOW);
+  digitalWrite(GREEN_LED_PIN, green ? HIGH : LOW);
+  digitalWrite(BLUE_LED_PIN, blue ? HIGH : LOW);
+digitalWrite(LED_LEFT_EN_PIN, LED_ENABLED);
+  analogWrite(RED_LED_PIN, r);
+  analogWrite(GREEN_LED_PIN, g);
+  analogWrite(BLUE_LED_PIN, b);
+  delay(5); // For persistence of vision 
+}
+
+void setRightLED(int r, int g, int b) {
+  digitalWrite(LED_LEFT_EN_PIN, LED_DISABLED);
+digitalWrite(LED_RIGHT_EN_PIN, LED_ENABLED);
+  analogWrite(RED_LED_PIN, r);
+  analogWrite(GREEN_LED_PIN, g);
+  analogWrite(BLUE_LED_PIN, b);
+  delay(5);
+}
+
+void moveForward() {
+  // Logic from Table 1 
+  digitalWrite(DRIVE_RIGHT_PIN_1, LOW);
+  digitalWrite(DRIVE_RIGHT_PIN_2, HIGH);
+/**
+ * Sets motor direction (1 for forward, 0 for stop).
+ */
+void setMotors(int leftSpeed, int rightSpeed) {
+digitalWrite(DRIVE_LEFT_PIN_1, LOW);
+  digitalWrite(DRIVE_LEFT_PIN_2, HIGH);
+  digitalWrite(DRIVE_LEFT_PIN_2, leftSpeed > 0 ? HIGH : LOW);
+  
+  digitalWrite(DRIVE_RIGHT_PIN_1, LOW);
+  digitalWrite(DRIVE_RIGHT_PIN_2, rightSpeed > 0 ? HIGH : LOW);
+}
+
+void stopRobot() {
+  // Logic from Table 1 
+  digitalWrite(DRIVE_RIGHT_PIN_1, LOW);
+  digitalWrite(DRIVE_RIGHT_PIN_2, LOW);
+  digitalWrite(DRIVE_LEFT_PIN_1, LOW);
+  digitalWrite(DRIVE_LEFT_PIN_2, LOW);
+/**
+ * Sends a pulse and calculates distance in cm.
+ * Uses a timeout to prevent the robot from freezing if a ping is lost.
+ */
+long readDistance(int trigPin, int echoPin) {
+  // Trigger the pulse
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH); 
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  
+  // Wait for the pulse to return, with a 30,000 microsecond timeout (~5 meters max)
+  long duration = pulseIn(echoPin, HIGH, 30000); 
+  
+  // If duration is 0, it means the timeout was reached (no obstacle detected)
+  if (duration == 0) {
+    return 999; 
+  }
+  
+  // Convert time to distance (d = t / 58)
+  return duration / 58; 
+}
